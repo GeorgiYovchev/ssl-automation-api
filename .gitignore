@@ -1,0 +1,24 @@
+# Certificates - NEVER COMMIT
+*.key
+*.pem
+*.pfx
+certs/*.crt
+certs/*.key
+!certs/.gitkeep
+
+# Python
+__pycache__/
+*.pyc
+venv/
+.venv/
+
+# Environment
+.env
+*.log
+
+# Output
+output/
+
+# IDE
+.idea/
+.vscode/

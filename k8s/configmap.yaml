@@ -1,0 +1,10 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: ssl-automation-config
+  namespace: develop
+data:
+  FLASK_DEBUG: "false"
+  GITLAB_URL: "https://gitlab.oddstech.net"
+  GITLAB_PROJECT_ID: "110"
+  GITLAB_BRANCH: "main"

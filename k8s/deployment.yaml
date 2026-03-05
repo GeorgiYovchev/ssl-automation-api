@@ -1,0 +1,67 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: ssl-automation
+  namespace: develop
+  labels:
+    app: ssl-automation
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: ssl-automation
+  template:
+    metadata:
+      labels:
+        app: ssl-automation
+    spec:
+      imagePullSecrets:
+        - name: regcredext
+      containers:
+        - name: ssl-automation
+          image: oddstechexternal.cr.de-fra.ionos.com/ssl-automation:latest
+          imagePullPolicy: Always
+          ports:
+            - containerPort: 5000
+              protocol: TCP
+          envFrom:
+            - configMapRef:
+                name: ssl-automation-config
+            - secretRef:
+                name: ssl-automation-secret
+          resources:
+            requests:
+              memory: "128Mi"
+              cpu: "100m"
+            limits:
+              memory: "256Mi"
+              cpu: "500m"
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 5000
+            initialDelaySeconds: 10
+            periodSeconds: 30
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 5000
+            initialDelaySeconds: 5
+            periodSeconds: 10
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: ssl-automation
+  namespace: develop
+  labels:
+    app: ssl-automation
+spec:
+  type: ClusterIP
+  ports:
+    - port: 80
+      targetPort: 5000
+      protocol: TCP
+      name: http
+  selector:
+    app: ssl-automation

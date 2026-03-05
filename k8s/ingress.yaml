@@ -1,0 +1,19 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: ssl-automation
+  namespace: develop
+  annotations:
+    kubernetes.io/ingress.class: nginx
+spec:
+  rules:
+    - host: autossl.oddstech.net
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: ssl-automation
+                port:
+                  number: 80

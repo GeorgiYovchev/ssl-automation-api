@@ -1,0 +1,53 @@
+---
+- name: Configure IIS HTTP Bindings
+  hosts: iis
+  gather_facts: false
+
+  vars:
+    domains_file: "{{ domains_file }}"
+    iis_site_name: "prod-pronet"
+    iis_app_pool_name: "prod-pronet"
+
+  tasks:
+    - name: Read domains from file
+      set_fact:
+        domains: "{{ lookup('file', domains_file).split('\n') | select() | list }}"
+      delegate_to: localhost
+
+    - name: Display domains to configure
+      debug:
+        msg: "Configuring {{ domains | length }} domains: {{ domains }}"
+
+    - name: Stop App Pool
+      win_shell: |
+        Import-Module WebAdministration
+        if ((Get-WebAppPoolState -Name '{{ iis_app_pool_name }}').Value -eq 'Started') {
+          Stop-WebAppPool -Name '{{ iis_app_pool_name }}'
+          Start-Sleep -Seconds 30
+        }
+
+    - name: Configure HTTP bindings for each domain
+      win_shell: |
+        Import-Module WebAdministration
+        $domain = '{{ item }}'
+        $siteName = '{{ iis_site_name }}'
+        $binding = Get-WebBinding -Name $siteName -Protocol "http" | Where-Object { $_.bindingInformation -eq "*:80:$domain" }
+        if (-not $binding) {
+          New-WebBinding -Name $siteName -IPAddress "*" -Port 80 -HostHeader $domain
+          Write-Output "Created binding for $domain"
+        } else {
+          Write-Output "Binding already exists for $domain"
+        }
+      loop: "{{ domains }}"
+      register: binding_results
+
+    - name: Start App Pool
+      win_shell: |
+        Import-Module WebAdministration
+        Start-WebAppPool -Name '{{ iis_app_pool_name }}'
+        Start-Sleep -Seconds 2
+        (Get-WebAppPoolState -Name '{{ iis_app_pool_name }}').Value
+
+    - name: Summary
+      debug:
+        msg: "IIS bindings configured for {{ domains | length }} domains"

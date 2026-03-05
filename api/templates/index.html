@@ -1,0 +1,619 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SSL Certificate Deployment</title>
+    <style>
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, sans-serif;
+            background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+            min-height: 100vh;
+            padding: 40px 20px;
+            color: #e4e4e4;
+        }
+        
+        .container {
+            max-width: 700px;
+            margin: 0 auto;
+        }
+        
+        h1 {
+            text-align: center;
+            margin-bottom: 10px;
+            font-size: 2rem;
+            color: #fff;
+        }
+        
+        .subtitle {
+            text-align: center;
+            color: #8892b0;
+            margin-bottom: 40px;
+            font-size: 0.95rem;
+        }
+        
+        .card {
+            background: rgba(255, 255, 255, 0.05);
+            border-radius: 16px;
+            padding: 30px;
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+        
+        .form-group {
+            margin-bottom: 24px;
+        }
+        
+        label {
+            display: block;
+            margin-bottom: 8px;
+            font-weight: 500;
+            color: #ccd6f6;
+        }
+        
+        .file-input-wrapper {
+            position: relative;
+            border: 2px dashed rgba(100, 255, 218, 0.3);
+            border-radius: 12px;
+            padding: 30px;
+            text-align: center;
+            transition: all 0.3s ease;
+            cursor: pointer;
+        }
+        
+        .file-input-wrapper:hover {
+            border-color: #64ffda;
+            background: rgba(100, 255, 218, 0.05);
+        }
+        
+        .file-input-wrapper.dragover {
+            border-color: #64ffda;
+            background: rgba(100, 255, 218, 0.1);
+        }
+        
+        .file-input-wrapper.has-file {
+            border-color: #64ffda;
+            border-style: solid;
+        }
+        
+        .file-input-wrapper input[type="file"] {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            opacity: 0;
+            cursor: pointer;
+        }
+        
+        .file-label {
+            color: #8892b0;
+            font-size: 0.9rem;
+        }
+        
+        .file-name {
+            color: #64ffda;
+            font-weight: 500;
+            margin-top: 8px;
+            word-break: break-all;
+        }
+        
+        .file-icon {
+            font-size: 2rem;
+            margin-bottom: 10px;
+        }
+        
+        textarea {
+            width: 100%;
+            padding: 16px;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 12px;
+            background: rgba(0, 0, 0, 0.2);
+            color: #e4e4e4;
+            font-family: 'Monaco', 'Consolas', monospace;
+            font-size: 0.9rem;
+            resize: vertical;
+            min-height: 120px;
+            transition: border-color 0.3s ease;
+        }
+        
+        textarea:focus {
+            outline: none;
+            border-color: #64ffda;
+        }
+        
+        textarea::placeholder {
+            color: #5a6a8a;
+        }
+        
+        .hint {
+            font-size: 0.8rem;
+            color: #5a6a8a;
+            margin-top: 8px;
+        }
+        
+        .btn {
+            width: 100%;
+            padding: 16px 32px;
+            border: none;
+            border-radius: 12px;
+            font-size: 1rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+        
+        .btn-primary {
+            background: linear-gradient(135deg, #64ffda 0%, #48c9b0 100%);
+            color: #1a1a2e;
+        }
+        
+        .btn-primary:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 40px rgba(100, 255, 218, 0.3);
+        }
+        
+        .btn-primary:disabled {
+            background: #3a4a6a;
+            color: #8892b0;
+            cursor: not-allowed;
+            transform: none;
+            box-shadow: none;
+        }
+        
+        .btn-secondary {
+            background: transparent;
+            border: 2px solid #64ffda;
+            color: #64ffda;
+            margin-top: 12px;
+        }
+        
+        .btn-secondary:hover {
+            background: rgba(100, 255, 218, 0.1);
+        }
+        
+        .alert {
+            padding: 16px;
+            border-radius: 12px;
+            margin-bottom: 20px;
+            display: none;
+        }
+        
+        .alert-error {
+            background: rgba(255, 82, 82, 0.1);
+            border: 1px solid rgba(255, 82, 82, 0.3);
+            color: #ff5252;
+        }
+        
+        .alert-success {
+            background: rgba(100, 255, 218, 0.1);
+            border: 1px solid rgba(100, 255, 218, 0.3);
+            color: #64ffda;
+        }
+        
+        .alert-info {
+            background: rgba(100, 181, 246, 0.1);
+            border: 1px solid rgba(100, 181, 246, 0.3);
+            color: #64b5f6;
+        }
+        
+        .result-box {
+            background: rgba(0, 0, 0, 0.3);
+            border-radius: 12px;
+            padding: 20px;
+            margin-top: 20px;
+            display: none;
+        }
+        
+        .result-box h3 {
+            color: #64ffda;
+            margin-bottom: 15px;
+            font-size: 1rem;
+        }
+        
+        .result-item {
+            display: flex;
+            justify-content: space-between;
+            padding: 8px 0;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+        }
+        
+        .result-item:last-child {
+            border-bottom: none;
+        }
+        
+        .result-label {
+            color: #8892b0;
+        }
+        
+        .result-value {
+            color: #ccd6f6;
+            font-family: monospace;
+        }
+        
+        .result-value a {
+            color: #64ffda;
+            text-decoration: none;
+        }
+        
+        .result-value a:hover {
+            text-decoration: underline;
+        }
+        
+        .loading {
+            display: none;
+            text-align: center;
+            padding: 20px;
+        }
+        
+        .spinner {
+            width: 40px;
+            height: 40px;
+            border: 3px solid rgba(100, 255, 218, 0.2);
+            border-top-color: #64ffda;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 15px;
+        }
+        
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+        
+        .cert-info {
+            background: rgba(0, 0, 0, 0.2);
+            border-radius: 8px;
+            padding: 12px;
+            margin-top: 10px;
+            font-size: 0.85rem;
+        }
+        
+        .cert-info-item {
+            display: flex;
+            gap: 10px;
+            padding: 4px 0;
+        }
+        
+        .cert-info-label {
+            color: #5a6a8a;
+            min-width: 80px;
+        }
+        
+        .cert-info-value {
+            color: #a8b2d1;
+            word-break: break-all;
+        }
+        
+        .status-badge {
+            display: inline-block;
+            padding: 4px 12px;
+            border-radius: 20px;
+            font-size: 0.75rem;
+            font-weight: 600;
+            text-transform: uppercase;
+        }
+        
+        .status-valid { background: rgba(100, 255, 218, 0.2); color: #64ffda; }
+        .status-expiring { background: rgba(255, 193, 7, 0.2); color: #ffc107; }
+        .status-expired { background: rgba(255, 82, 82, 0.2); color: #ff5252; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🔐 SSL Certificate Deployment</h1>
+        <p class="subtitle">Upload certificates and deploy to HAProxy & IIS</p>
+        
+        <div class="card">
+            <div id="alert" class="alert"></div>
+            
+            <form id="deployForm">
+                <!-- Certificate File -->
+                <div class="form-group">
+                    <label>Certificate File (.crt)</label>
+                    <div class="file-input-wrapper" id="certWrapper">
+                        <div class="file-icon">📜</div>
+                        <div class="file-label">Drag & drop or click to select</div>
+                        <div class="file-name" id="certFileName"></div>
+                        <input type="file" id="certificate" name="certificate" accept=".crt,.pem,.cer" required>
+                    </div>
+                    <div class="cert-info" id="certInfo" style="display: none;"></div>
+                </div>
+                
+                <!-- Private Key File -->
+                <div class="form-group">
+                    <label>Private Key File (.key)</label>
+                    <div class="file-input-wrapper" id="keyWrapper">
+                        <div class="file-icon">🔑</div>
+                        <div class="file-label">Drag & drop or click to select</div>
+                        <div class="file-name" id="keyFileName"></div>
+                        <input type="file" id="key" name="key" accept=".key,.pem" required>
+                    </div>
+                </div>
+                
+                <!-- Domains -->
+                <div class="form-group">
+                    <label>Domains (for IIS HTTP bindings)</label>
+                    <textarea 
+                        id="domains" 
+                        name="domains" 
+                        placeholder="Enter domains separated by comma, space, or new line:
+
+example.com
+www.example.com
+api.example.com
+
+or: example.com, www.example.com, api.example.com"
+                        required
+                    ></textarea>
+                    <div class="hint">These domains will be added as HTTP bindings (port 80) in IIS</div>
+                </div>
+                
+                <button type="submit" class="btn btn-primary" id="submitBtn">
+                    🚀 Deploy Certificates
+                </button>
+                
+                <button type="button" class="btn btn-secondary" id="validateBtn">
+                    ✓ Validate Only
+                </button>
+            </form>
+            
+            <div class="loading" id="loading">
+                <div class="spinner"></div>
+                <div>Processing...</div>
+            </div>
+            
+            <div class="result-box" id="resultBox">
+                <h3>✅ Deployment Initiated</h3>
+                <div id="resultContent"></div>
+            </div>
+        </div>
+    </div>
+    
+    <script>
+        // File input handlers
+        function setupFileInput(inputId, wrapperId, fileNameId) {
+            const input = document.getElementById(inputId);
+            const wrapper = document.getElementById(wrapperId);
+            const fileName = document.getElementById(fileNameId);
+            
+            // Drag and drop
+            wrapper.addEventListener('dragover', (e) => {
+                e.preventDefault();
+                wrapper.classList.add('dragover');
+            });
+            
+            wrapper.addEventListener('dragleave', () => {
+                wrapper.classList.remove('dragover');
+            });
+            
+            wrapper.addEventListener('drop', (e) => {
+                e.preventDefault();
+                wrapper.classList.remove('dragover');
+                if (e.dataTransfer.files.length) {
+                    input.files = e.dataTransfer.files;
+                    input.dispatchEvent(new Event('change'));
+                }
+            });
+            
+            // File selection
+            input.addEventListener('change', () => {
+                if (input.files.length) {
+                    fileName.textContent = input.files[0].name;
+                    wrapper.classList.add('has-file');
+                } else {
+                    fileName.textContent = '';
+                    wrapper.classList.remove('has-file');
+                }
+            });
+        }
+        
+        setupFileInput('certificate', 'certWrapper', 'certFileName');
+        setupFileInput('key', 'keyWrapper', 'keyFileName');
+        
+        // Show alert
+        function showAlert(message, type = 'error') {
+            const alert = document.getElementById('alert');
+            alert.className = `alert alert-${type}`;
+            alert.textContent = message;
+            alert.style.display = 'block';
+        }
+        
+        function hideAlert() {
+            document.getElementById('alert').style.display = 'none';
+        }
+        
+        // Show loading
+        function setLoading(loading) {
+            document.getElementById('loading').style.display = loading ? 'block' : 'none';
+            document.getElementById('submitBtn').disabled = loading;
+            document.getElementById('validateBtn').disabled = loading;
+        }
+        
+        // Show certificate info
+        function showCertInfo(cert) {
+            const info = document.getElementById('certInfo');
+            let status = 'valid';
+            if (cert.expired) status = 'expired';
+            else if (cert.expiring_soon) status = 'expiring';
+            
+            info.innerHTML = `
+                <div class="cert-info-item">
+                    <span class="cert-info-label">Status:</span>
+                    <span class="status-badge status-${status}">${status === 'valid' ? 'Valid' : status === 'expiring' ? 'Expiring Soon' : 'Expired'}</span>
+                </div>
+                <div class="cert-info-item">
+                    <span class="cert-info-label">Subject:</span>
+                    <span class="cert-info-value">${cert.subject}</span>
+                </div>
+                <div class="cert-info-item">
+                    <span class="cert-info-label">Expires:</span>
+                    <span class="cert-info-value">${cert.not_after} (${cert.days_remaining} days)</span>
+                </div>
+                <div class="cert-info-item">
+                    <span class="cert-info-label">Domains:</span>
+                    <span class="cert-info-value">${cert.domains.join(', ') || 'N/A'}</span>
+                </div>
+            `;
+            info.style.display = 'block';
+        }
+        
+        // Show result
+        function showResult(data) {
+            const box = document.getElementById('resultBox');
+            const content = document.getElementById('resultContent');
+            
+            let html = `
+                <div class="result-item">
+                    <span class="result-label">Certificate:</span>
+                    <span class="result-value">${data.certificate?.subject || 'N/A'}</span>
+                </div>
+                <div class="result-item">
+                    <span class="result-label">Expires:</span>
+                    <span class="result-value">${data.certificate?.expires || 'N/A'}</span>
+                </div>
+                <div class="result-item">
+                    <span class="result-label">Domains:</span>
+                    <span class="result-value">${data.domains?.length || 0} configured</span>
+                </div>
+            `;
+            
+            if (data.pipeline?.pipeline_url) {
+                html += `
+                    <div class="result-item">
+                        <span class="result-label">Pipeline:</span>
+                        <span class="result-value"><a href="${data.pipeline.pipeline_url}" target="_blank">View in GitLab →</a></span>
+                    </div>
+                `;
+            }
+            
+            if (data.pipeline?.commit_url) {
+                html += `
+                    <div class="result-item">
+                        <span class="result-label">Commit:</span>
+                        <span class="result-value"><a href="${data.pipeline.commit_url}" target="_blank">View Commit →</a></span>
+                    </div>
+                `;
+            }
+            
+            content.innerHTML = html;
+            box.style.display = 'block';
+        }
+        
+        // Show domain errors
+        function showDomainErrors(errors) {
+            if (!errors || errors.length === 0) return;
+            
+            const box = document.getElementById('resultBox');
+            const content = document.getElementById('resultContent');
+            
+            let html = '<h3 style="color: #ffc107;">⚠️ Invalid Domains</h3>';
+            html += '<div style="font-size: 0.85rem; color: #ff8a80;">';
+            errors.forEach(err => {
+                html += `<div style="padding: 4px 0;">• ${err}</div>`;
+            });
+            html += '</div>';
+            
+            content.innerHTML = html;
+            box.style.display = 'block';
+        }
+        
+        // Validate only
+        document.getElementById('validateBtn').addEventListener('click', async () => {
+            hideAlert();
+            document.getElementById('resultBox').style.display = 'none';
+            
+            const formData = new FormData(document.getElementById('deployForm'));
+            
+            if (!formData.get('certificate')?.size || !formData.get('key')?.size) {
+                showAlert('Please select both certificate and key files');
+                return;
+            }
+            
+            setLoading(true);
+            
+            try {
+                const response = await fetch('/api/validate', {
+                    method: 'POST',
+                    body: formData
+                });
+                
+                const data = await response.json();
+                
+                if (data.valid) {
+                    showCertInfo(data.certificate);
+                    let msg = `Certificate is valid! ${data.domains_count} domains parsed.`;
+                    if (data.domain_errors && data.domain_errors.length > 0) {
+                        msg += ` (${data.domain_errors.length} invalid domains skipped)`;
+                        showAlert(msg, 'info');
+                        showDomainErrors(data.domain_errors);
+                    } else {
+                        showAlert(msg, 'success');
+                    }
+                } else {
+                    showAlert(data.error || 'Validation failed');
+                }
+            } catch (error) {
+                showAlert('Request failed: ' + error.message);
+            } finally {
+                setLoading(false);
+            }
+        });
+        
+        // Deploy
+        document.getElementById('deployForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            hideAlert();
+            document.getElementById('resultBox').style.display = 'none';
+            document.getElementById('certInfo').style.display = 'none';
+            
+            const formData = new FormData(e.target);
+            
+            if (!formData.get('certificate')?.size) {
+                showAlert('Please select a certificate file');
+                return;
+            }
+            if (!formData.get('key')?.size) {
+                showAlert('Please select a private key file');
+                return;
+            }
+            if (!formData.get('domains')?.trim()) {
+                showAlert('Please enter at least one domain');
+                return;
+            }
+            
+            setLoading(true);
+            
+            try {
+                const response = await fetch('/api/deploy', {
+                    method: 'POST',
+                    body: formData
+                });
+                
+                const data = await response.json();
+                
+                if (data.success) {
+                    showAlert('Deployment triggered successfully!', 'success');
+                    showResult(data);
+                } else {
+                    showAlert(data.error || 'Deployment failed');
+                    if (data.domain_errors) {
+                        showDomainErrors(data.domain_errors);
+                    }
+                }
+            } catch (error) {
+                showAlert('Request failed: ' + error.message);
+            } finally {
+                setLoading(false);
+            }
+        });
+    </script>
+</body>
+</html>

@@ -1,0 +1,173 @@
+stages:
+  - build
+  - prepare
+  - validate
+  - build_pem
+  - deploy
+
+variables:
+  IMAGE_NAME: $CI_REGISTRY_IMAGE
+  IMAGE_TAG: $CI_COMMIT_SHORT_SHA
+  CERT_FILE: "certs/certificate.crt"
+  KEY_FILE: "certs/certificate.key"
+  DOMAINS_FILE: "certs/domains.txt"
+  PEM_FILE: "output/combined.pem"
+  ANSIBLE_HOST_KEY_CHECKING: "False"
+  IIS_APP_POOL_NAME: "prod-pronet"
+  IIS_SITE_NAME: "prod-pronet"
+
+workflow:
+  rules:
+    - if: '$CI_COMMIT_BRANCH == "main"'
+    - if: '$CI_PIPELINE_SOURCE == "trigger"'
+    - if: '$CI_PIPELINE_SOURCE == "web"'
+
+build_image:
+  stage: build
+  image: docker:24
+  services:
+    - docker:24-dind
+  script:
+    - echo "Building Docker image..."
+    - docker login -u $CI_REGISTRY_USER -p $CI_REGISTRY_PASSWORD $CI_REGISTRY
+    - docker build -t $IMAGE_NAME:$IMAGE_TAG -t $IMAGE_NAME:latest ./api
+    - docker push $IMAGE_NAME:$IMAGE_TAG
+    - docker push $IMAGE_NAME:latest
+  rules:
+    - if: '$CI_PIPELINE_SOURCE == "trigger"'
+      when: never
+    - if: '$CI_COMMIT_BRANCH == "main"'
+      changes:
+        - api/**/*
+    - if: '$CI_PIPELINE_SOURCE == "web"'
+      when: manual
+
+prepare_from_api:
+  stage: prepare
+  image: alpine:latest
+  script:
+    - echo "=== Preparing files from API ==="
+    - mkdir -p certs output
+    - if [ -n "$CERT_CONTENT" ]; then echo "$CERT_CONTENT" > certs/certificate.crt && echo "Certificate created"; fi
+    - if [ -n "$KEY_CONTENT" ]; then echo "$KEY_CONTENT" > certs/certificate.key && chmod 600 certs/certificate.key && echo "Key created"; fi
+    - if [ -n "$DOMAINS_CONTENT" ]; then echo "$DOMAINS_CONTENT" > certs/domains.txt && echo "Domains:" && cat certs/domains.txt; fi
+  artifacts:
+    paths:
+      - certs/
+      - output/
+    expire_in: 1 hour
+  rules:
+    - if: '$CERT_CONTENT && $KEY_CONTENT'
+
+validate:
+  stage: validate
+  image: alpine:latest
+  needs:
+    - job: prepare_from_api
+      artifacts: true
+  before_script:
+    - apk add --no-cache openssl
+  script:
+    - echo "=== Validating Certificate ==="
+    - ls -la certs/
+    - test -f "$CERT_FILE" || (echo "ERROR Certificate not found" && exit 1)
+    - test -f "$KEY_FILE" || (echo "ERROR Key not found" && exit 1)
+    - echo "Certificate info:"
+    - openssl x509 -in "$CERT_FILE" -noout -dates -subject
+    - echo "Key check:"
+    - openssl rsa -in "$KEY_FILE" -check -noout 2>/dev/null && echo "Key valid"
+    - echo "Matching check:"
+    - CERT_MOD=$(openssl x509 -in "$CERT_FILE" -noout -modulus | openssl md5)
+    - KEY_MOD=$(openssl rsa -in "$KEY_FILE" -noout -modulus 2>/dev/null | openssl md5)
+    - if [ "$CERT_MOD" = "$KEY_MOD" ]; then echo "Certificate and key match"; else echo "Certificate and key DO NOT match" && exit 1; fi
+  rules:
+    - if: '$CERT_CONTENT && $KEY_CONTENT'
+    - if: '$CI_PIPELINE_SOURCE == "web"'
+      when: manual
+
+build_pem:
+  stage: build_pem
+  image: alpine:latest
+  needs:
+    - job: validate
+    - job: prepare_from_api
+      artifacts: true
+  script:
+    - echo "=== Building PEM ==="
+    - ls -la certs/
+    - mkdir -p output
+    - apk add --no-cache openssl file
+    - echo "Removing BOM if present..."
+    - sed -i '1s/^\xef\xbb\xbf//' certs/certificate.key || true
+    - sed -i '1s/^\xef\xbb\xbf//' certs/certificate.crt || true
+    - cat certs/certificate.key | tr -d '\357\273\277' > /tmp/clean.key && mv /tmp/clean.key certs/certificate.key
+    - cat certs/certificate.crt | tr -d '\357\273\277' > /tmp/clean.crt && mv /tmp/clean.crt certs/certificate.crt
+    - head -n 1 certs/domains.txt | tr -d '\r' > /tmp/first_domain.txt
+    - cat /tmp/first_domain.txt | awk -F. '{print $(NF-1)}' > output/pem_name.txt
+    - PEM_NAME=$(cat output/pem_name.txt)
+    - echo "PEM name will be $PEM_NAME"
+    - cat certs/certificate.key certs/certificate.crt > output/$PEM_NAME.pem
+    - chmod 600 output/$PEM_NAME.pem
+    - echo "Validating PEM file..."
+    - file output/$PEM_NAME.pem
+    - openssl rsa -in output/$PEM_NAME.pem -check -noout && echo "Private key OK"
+    - openssl x509 -in output/$PEM_NAME.pem -noout && echo "Certificate OK"
+    - ls -la output/
+  artifacts:
+    paths:
+      - output/
+    expire_in: 1 week
+
+deploy_haproxy:
+  stage: deploy
+  image: python:3.11-slim
+  needs:
+    - job: build_pem
+      artifacts: true
+  before_script:
+    - apt-get update && apt-get install -y openssh-client
+    - pip install ansible
+    - mkdir -p ~/.ssh && chmod 700 ~/.ssh
+    - cp $SSH_PRIVATE_KEY ~/.ssh/id_rsa
+    - echo "" >> ~/.ssh/id_rsa
+    - chmod 600 ~/.ssh/id_rsa
+    - echo "=== SSH Key Debug ==="
+    - head -1 ~/.ssh/id_rsa
+    - tail -1 ~/.ssh/id_rsa
+    - wc -l ~/.ssh/id_rsa
+  script:
+    - echo "=== Deploying to HAProxy ==="
+    - cat output/pem_name.txt
+    - ls -la output/
+    - cd pipeline/ansible
+    - PEM_NAME=$(cat ../../output/pem_name.txt) && ansible-playbook playbooks/deploy_haproxy.yml -i inventory/hosts.yml -e pem_file_path=$CI_PROJECT_DIR/output/$PEM_NAME.pem -e pem_name=$PEM_NAME -v
+  after_script:
+    - rm -f ~/.ssh/id_rsa
+  environment:
+    name: production/haproxy
+  rules:
+    - if: '$CERT_CONTENT && $KEY_CONTENT'
+    - if: '$CI_PIPELINE_SOURCE == "web"'
+      when: manual
+
+deploy_iis:
+  stage: deploy
+  image: python:3.11-slim
+  needs:
+    - job: validate
+    - job: prepare_from_api
+      artifacts: true
+  before_script:
+    - apt-get update && apt-get install -y sshpass
+    - pip install ansible pywinrm
+  script:
+    - echo "=== Deploying IIS Bindings ==="
+    - cat certs/domains.txt
+    - cd pipeline/ansible
+    - ansible-playbook playbooks/deploy_iis.yml -i inventory/hosts.yml -e ansible_user=$IIS_USER -e ansible_password=$IIS_PASSWORD -e domains_file=$CI_PROJECT_DIR/certs/domains.txt -v
+  environment:
+    name: production/iis
+  rules:
+    - if: '$CERT_CONTENT && $DOMAINS_CONTENT'
+    - if: '$CI_PIPELINE_SOURCE == "web"'
+      when: manual

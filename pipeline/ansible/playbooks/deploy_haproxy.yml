@@ -1,0 +1,53 @@
+---
+- name: Deploy SSL Certificate to HAProxy
+  hosts: haproxy
+  become: true
+  
+  vars:
+    pem_file_path: "{{ pem_file_path }}"
+    pem_name: "{{ pem_name }}"
+    haproxy_cert_dir: /etc/haproxy/certs
+    haproxy_backup_dir: /etc/haproxy/certs/backup
+    
+  tasks:
+    - name: Ensure directories exist
+      ansible.builtin.file:
+        path: "{{ item }}"
+        state: directory
+        mode: '0700'
+      loop:
+        - "{{ haproxy_cert_dir }}"
+        - "{{ haproxy_backup_dir }}"
+        
+    - name: Check existing certificate
+      ansible.builtin.stat:
+        path: "{{ haproxy_cert_dir }}/{{ pem_name }}.pem"
+      register: existing_cert
+      
+    - name: Backup existing certificate
+      ansible.builtin.copy:
+        src: "{{ haproxy_cert_dir }}/{{ pem_name }}.pem"
+        dest: "{{ haproxy_backup_dir }}/{{ pem_name }}.pem.{{ ansible_date_time.epoch }}"
+        remote_src: true
+        mode: '0600'
+      when: existing_cert.stat.exists
+      
+    - name: Deploy PEM certificate
+      ansible.builtin.copy:
+        src: "{{ pem_file_path }}"
+        dest: "{{ haproxy_cert_dir }}/{{ pem_name }}.pem"
+        owner: root
+        group: root
+        mode: '0600'
+      notify: Reload HAProxy
+      
+    - name: Validate HAProxy config
+      ansible.builtin.command:
+        cmd: haproxy -c -f /etc/haproxy/haproxy.cfg
+      changed_when: false
+      
+  handlers:
+    - name: Reload HAProxy
+      ansible.builtin.systemd:
+        name: haproxy
+        state: reloaded

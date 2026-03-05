@@ -1,124 +1,3 @@
-# SSL Certificate Automation - User Guide
-
-## Overview
-
-This tool allows you to deploy SSL certificates to HAProxy and IIS servers automatically through a simple web interface.
-
----
-
-## Step-by-Step Guide
-
-### 1. Access the Application
-
-Open your browser and go to:
-```
-https://autossl.oddstech.net
-```
-
----
-
-### 2. Upload Certificate Files
-
-You will see a form with the following fields:
-
-#### Certificate File (.crt)
-- Click **"Choose File"** or drag and drop
-- Select the `.crt` certificate file
-
-#### Private Key File (.key)
-- Click **"Choose File"** or drag and drop
-- Select the `.key` private key file
-
-#### Domains
-- Enter the domains in the text area
-- One domain per line, for example:
-  ```
-  ultraplay.example1.com
-  ultraplay.example2.com
-  ultraplay.example3.com
-  ```
-
----
-
-### 3. Validate (Optional but Recommended)
-
-Click the **"Validate Only"** button to check:
-- Certificate format is valid
-- Private key format is valid
-- Certificate and key match each other
-- Domains are in correct format
-
-If validation passes, you will see a green success message.
-
----
-
-### 4. Deploy
-
-Click the **"Deploy"** button to start the deployment process.
-
-If successful, you will see:
-- ✅ Success message
-- 🔗 **Pipeline URL** - click this link to monitor the deployment
-
----
-
-### 5. Monitor the Pipeline
-
-Click the pipeline link to open GitLab and watch the deployment progress:
-
-| Stage | Description |
-|-------|-------------|
-| **prepare** | Prepares certificate files |
-| **validate** | Validates certificate and key |
-| **build_pem** | Creates PEM file for HAProxy |
-| **deploy** | Deploys to HAProxy and IIS (runs in parallel) |
-
-Wait for all stages to turn **green** ✅
-
----
-
-## Troubleshooting
-
-### "Certificate and key do not match"
-- Make sure you uploaded the correct `.crt` and `.key` files that belong together
-
-### "Invalid domain format"
-- Check for typos in domain names
-- Domains should be like: `subdomain.domain.com`
-
-### Pipeline fails at deploy_haproxy
-- Check if HAProxy server is accessible
-- Contact DevOps team
-
-### Pipeline fails at deploy_iis
-- Check if IIS server is accessible
-- Contact DevOps team
-
----
-
-## Important Notes
-
-⚠️ **The PEM file name** is automatically generated from the first domain's second-level name.
-- Example: `ultraplay.betper695.com` → `betper695.pem`
-
-⚠️ **Certificate files should be in PEM format** (text files starting with `-----BEGIN`)
-
-⚠️ **Do not close the browser** until you see the pipeline link
-
----
-
-## Need Help?
-
-Contact the DevOps team if you encounter any issues not covered in this guide.
-
-
----
----
----
----
----
-
-
 # SSL Automation API More Info
 
 Web UI for SSL certificate management with automated deployment to HAProxy and IIS.
@@ -311,3 +190,122 @@ python app.py
 | `build_pem` | Generate PEM file for HAProxy |
 | `deploy_haproxy` | Deploy to HAProxy via Ansible |
 | `deploy_iis` | Configure IIS HTTP bindings |
+
+---
+---
+---
+---
+---
+
+# SSL Certificate Automation - User Guide
+
+## Overview
+
+This tool allows you to deploy SSL certificates to HAProxy and IIS servers automatically through a simple web interface.
+
+---
+
+## Step-by-Step Guide
+
+### 1. Access the Application
+
+Open your browser and go to:
+```
+https://autossl.oddstech.net
+```
+
+---
+
+### 2. Upload Certificate Files
+
+You will see a form with the following fields:
+
+#### Certificate File (.crt)
+- Click **"Choose File"** or drag and drop
+- Select the `.crt` certificate file
+
+#### Private Key File (.key)
+- Click **"Choose File"** or drag and drop
+- Select the `.key` private key file
+
+#### Domains
+- Enter the domains in the text area
+- One domain per line, for example:
+  ```
+  ultraplay.example1.com
+  ultraplay.example2.com
+  ultraplay.example3.com
+  ```
+
+---
+
+### 3. Validate (Optional but Recommended)
+
+Click the **"Validate Only"** button to check:
+- Certificate format is valid
+- Private key format is valid
+- Certificate and key match each other
+- Domains are in correct format
+
+If validation passes, you will see a green success message.
+
+---
+
+### 4. Deploy
+
+Click the **"Deploy"** button to start the deployment process.
+
+If successful, you will see:
+- ✅ Success message
+- 🔗 **Pipeline URL** - click this link to monitor the deployment
+
+---
+
+### 5. Monitor the Pipeline
+
+Click the pipeline link to open GitLab and watch the deployment progress:
+
+| Stage | Description |
+|-------|-------------|
+| **prepare** | Prepares certificate files |
+| **validate** | Validates certificate and key |
+| **build_pem** | Creates PEM file for HAProxy |
+| **deploy** | Deploys to HAProxy and IIS (runs in parallel) |
+
+Wait for all stages to turn **green** ✅
+
+---
+
+## Troubleshooting
+
+### "Certificate and key do not match"
+- Make sure you uploaded the correct `.crt` and `.key` files that belong together
+
+### "Invalid domain format"
+- Check for typos in domain names
+- Domains should be like: `subdomain.domain.com`
+
+### Pipeline fails at deploy_haproxy
+- Check if HAProxy server is accessible
+- Contact DevOps team
+
+### Pipeline fails at deploy_iis
+- Check if IIS server is accessible
+- Contact DevOps team
+
+---
+
+## Important Notes
+
+⚠️ **The PEM file name** is automatically generated from the first domain's second-level name.
+- Example: `ultraplay.betper695.com` → `betper695.pem`
+
+⚠️ **Certificate files should be in PEM format** (text files starting with `-----BEGIN`)
+
+⚠️ **Do not close the browser** until you see the pipeline link
+
+---
+
+## Need Help?
+
+Contact the DevOps team if you encounter any issues not covered in this guide.

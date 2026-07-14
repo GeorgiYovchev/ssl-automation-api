@@ -1,0 +1,57 @@
+---
+- name: Deploy SSL Certificate to OpenResty
+  hosts: openresty
+  become: true
+
+  vars:
+    pem_file_path: "{{ pem_file_path }}"
+    pem_name: "{{ pem_name }}"
+    openresty_cert_dir: /etc/letsencrypt/live/certs/pronet
+    openresty_backup_dir: /etc/letsencrypt/live/certs/pronet/backup
+
+  tasks:
+    - name: Ensure directories exist
+      ansible.builtin.file:
+        path: "{{ item }}"
+        state: directory
+        mode: '0750'
+        owner: root
+        group: nogroup
+      loop:
+        - "{{ openresty_cert_dir }}"
+        - "{{ openresty_backup_dir }}"
+
+    - name: Check existing certificate
+      ansible.builtin.stat:
+        path: "{{ openresty_cert_dir }}/{{ pem_name }}.pem"
+      register: existing_cert
+
+    - name: Backup existing certificate
+      ansible.builtin.copy:
+        src: "{{ openresty_cert_dir }}/{{ pem_name }}.pem"
+        dest: "{{ openresty_backup_dir }}/{{ pem_name }}.pem.{{ ansible_date_time.epoch }}"
+        remote_src: true
+        mode: '0640'
+        owner: root
+        group: nogroup
+      when: existing_cert.stat.exists
+
+    - name: Deploy PEM certificate
+      ansible.builtin.copy:
+        src: "{{ pem_file_path }}"
+        dest: "{{ openresty_cert_dir }}/{{ pem_name }}.pem"
+        owner: root
+        group: nogroup
+        mode: '0640'
+      notify: Reload OpenResty
+
+    - name: Validate OpenResty config
+      ansible.builtin.command:
+        cmd: /usr/local/openresty/bin/openresty -t
+      changed_when: false
+
+  handlers:
+    - name: Reload OpenResty
+      ansible.builtin.systemd:
+        name: openresty
+        state: reloaded

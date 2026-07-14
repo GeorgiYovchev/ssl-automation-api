@@ -309,7 +309,7 @@
 <body>
     <div class="container">
         <h1>🔐 SSL Certificate Deployment</h1>
-        <p class="subtitle">Upload certificates and deploy to HAProxy & IIS</p>
+        <p class="subtitle">Upload certificates and deploy to OpenResty & IIS</p>
         
         <div class="card">
             <div id="alert" class="alert"></div>
@@ -337,7 +337,19 @@
                         <input type="file" id="key" name="key" accept=".key,.pem" required>
                     </div>
                 </div>
-                
+
+                <!-- Bundle File (optional) -->
+                <div class="form-group">
+                    <label>Bundle / Chain File <span style="color: #5a6a8a; font-weight: 400;">(optional — intermediate CA certs)</span></label>
+                    <div class="file-input-wrapper" id="bundleWrapper">
+                        <div class="file-icon">🔗</div>
+                        <div class="file-label">Drag & drop or click to select</div>
+                        <div class="file-name" id="bundleFileName"></div>
+                        <input type="file" id="bundle" name="bundle" accept=".crt,.pem,.cer,.ca-bundle">
+                    </div>
+                    <div class="hint">GoDaddy, ZeroSSL, and other CAs provide a separate bundle/chain file. Append it to ensure full chain trust.</div>
+                </div>
+
                 <!-- Domains -->
                 <div class="form-group">
                     <label>Domains (for IIS HTTP bindings)</label>
@@ -417,6 +429,7 @@ or: example.com, www.example.com, api.example.com"
         
         setupFileInput('certificate', 'certWrapper', 'certFileName');
         setupFileInput('key', 'keyWrapper', 'keyFileName');
+        setupFileInput('bundle', 'bundleWrapper', 'bundleFileName');
         
         // Show alert
         function showAlert(message, type = 'error') {

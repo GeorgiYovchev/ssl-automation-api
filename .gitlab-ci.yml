@@ -6,7 +6,7 @@ stages:
   - deploy
 
 variables:
-  IMAGE_NAME: $CI_REGISTRY_IMAGE
+  IMAGE_NAME: oddstechexternal.cr.de-fra.ionos.com/ssl-automation
   IMAGE_TAG: $CI_COMMIT_SHORT_SHA
   CERT_FILE: "certs/certificate.crt"
   KEY_FILE: "certs/certificate.key"
@@ -24,15 +24,18 @@ workflow:
 
 build_image:
   stage: build
-  image: docker:24
-  services:
-    - docker:24-dind
+  image:
+    name: gcr.io/kaniko-project/executor:v1.23.2-debug
+    entrypoint: [""]
+  before_script:
+    - mkdir -p /kaniko/.docker
+    - cat ${IONOS_REGCRED_EXTERNAL} > /kaniko/.docker/config.json
   script:
-    - echo "Building Docker image..."
-    - docker login -u $CI_REGISTRY_USER -p $CI_REGISTRY_PASSWORD $CI_REGISTRY
-    - docker build -t $IMAGE_NAME:$IMAGE_TAG -t $IMAGE_NAME:latest ./api
-    - docker push $IMAGE_NAME:$IMAGE_TAG
-    - docker push $IMAGE_NAME:latest
+    - /kaniko/executor
+      --context "${CI_PROJECT_DIR}/api"
+      --dockerfile "${CI_PROJECT_DIR}/api/Dockerfile"
+      --destination "${IMAGE_NAME}:${IMAGE_TAG}"
+      --destination "${IMAGE_NAME}:latest"
   rules:
     - if: '$CI_PIPELINE_SOURCE == "trigger"'
       when: never
@@ -51,6 +54,7 @@ prepare_from_api:
     - if [ -n "$CERT_CONTENT" ]; then echo "$CERT_CONTENT" > certs/certificate.crt && echo "Certificate created"; fi
     - if [ -n "$KEY_CONTENT" ]; then echo "$KEY_CONTENT" > certs/certificate.key && chmod 600 certs/certificate.key && echo "Key created"; fi
     - if [ -n "$DOMAINS_CONTENT" ]; then echo "$DOMAINS_CONTENT" > certs/domains.txt && echo "Domains:" && cat certs/domains.txt; fi
+    - if [ -n "$BUNDLE_CONTENT" ]; then echo "$BUNDLE_CONTENT" > certs/bundle.crt && echo "Bundle created"; else echo "No bundle provided"; fi
   artifacts:
     paths:
       - certs/
@@ -75,11 +79,11 @@ validate:
     - echo "Certificate info:"
     - openssl x509 -in "$CERT_FILE" -noout -dates -subject
     - echo "Key check:"
-    - openssl rsa -in "$KEY_FILE" -check -noout 2>/dev/null && echo "Key valid"
+    - openssl pkey -in "$KEY_FILE" -check -noout && echo "Key valid"
     - echo "Matching check:"
-    - CERT_MOD=$(openssl x509 -in "$CERT_FILE" -noout -modulus | openssl md5)
-    - KEY_MOD=$(openssl rsa -in "$KEY_FILE" -noout -modulus 2>/dev/null | openssl md5)
-    - if [ "$CERT_MOD" = "$KEY_MOD" ]; then echo "Certificate and key match"; else echo "Certificate and key DO NOT match" && exit 1; fi
+    - CERT_PUB=$(openssl x509 -in "$CERT_FILE" -noout -pubkey | openssl md5)
+    - KEY_PUB=$(openssl pkey -in "$KEY_FILE" -pubout 2>/dev/null | openssl md5)
+    - if [ "$CERT_PUB" = "$KEY_PUB" ]; then echo "Certificate and key match"; else echo "Certificate and key DO NOT match" && exit 1; fi
   rules:
     - if: '$CERT_CONTENT && $KEY_CONTENT'
     - if: '$CI_PIPELINE_SOURCE == "web"'
@@ -96,29 +100,38 @@ build_pem:
     - echo "=== Building PEM ==="
     - ls -la certs/
     - mkdir -p output
-    - apk add --no-cache openssl file
-    - echo "Removing BOM if present..."
-    - sed -i '1s/^\xef\xbb\xbf//' certs/certificate.key || true
-    - sed -i '1s/^\xef\xbb\xbf//' certs/certificate.crt || true
-    - cat certs/certificate.key | tr -d '\357\273\277' > /tmp/clean.key && mv /tmp/clean.key certs/certificate.key
-    - cat certs/certificate.crt | tr -d '\357\273\277' > /tmp/clean.crt && mv /tmp/clean.crt certs/certificate.crt
+    - apk add --no-cache openssl file dos2unix
+    - echo "Converting files to Unix format..."
+    - dos2unix certs/certificate.key certs/certificate.crt
+    - if [ -f certs/bundle.crt ]; then dos2unix certs/bundle.crt; fi
     - head -n 1 certs/domains.txt | tr -d '\r' > /tmp/first_domain.txt
     - cat /tmp/first_domain.txt | awk -F. '{print $(NF-1)}' > output/pem_name.txt
     - PEM_NAME=$(cat output/pem_name.txt)
     - echo "PEM name will be $PEM_NAME"
-    - cat certs/certificate.key certs/certificate.crt > output/$PEM_NAME.pem
+    - |
+      if [ -f certs/bundle.crt ]; then
+        echo "Building PEM with bundle (key + crt + bundle)"
+        cat certs/certificate.key certs/certificate.crt certs/bundle.crt > output/$PEM_NAME.pem
+      else
+        echo "Building PEM without bundle (key + crt)"
+        cat certs/certificate.key certs/certificate.crt > output/$PEM_NAME.pem
+      fi
     - chmod 600 output/$PEM_NAME.pem
     - echo "Validating PEM file..."
     - file output/$PEM_NAME.pem
-    - openssl rsa -in output/$PEM_NAME.pem -check -noout && echo "Private key OK"
+    - openssl pkey -in output/$PEM_NAME.pem -check -noout && echo "Private key OK"
     - openssl x509 -in output/$PEM_NAME.pem -noout && echo "Certificate OK"
     - ls -la output/
   artifacts:
     paths:
       - output/
     expire_in: 1 week
+  rules:
+    - if: '$CERT_CONTENT && $KEY_CONTENT'
+    - if: '$CI_PIPELINE_SOURCE == "web"'
+      when: manual
 
-deploy_haproxy:
+deploy_openresty:
   stage: deploy
   image: python:3.11-slim
   needs:
@@ -136,15 +149,15 @@ deploy_haproxy:
     - tail -1 ~/.ssh/id_rsa
     - wc -l ~/.ssh/id_rsa
   script:
-    - echo "=== Deploying to HAProxy ==="
+    - echo "=== Deploying to OpenResty ==="
     - cat output/pem_name.txt
     - ls -la output/
     - cd pipeline/ansible
-    - PEM_NAME=$(cat ../../output/pem_name.txt) && ansible-playbook playbooks/deploy_haproxy.yml -i inventory/hosts.yml -e pem_file_path=$CI_PROJECT_DIR/output/$PEM_NAME.pem -e pem_name=$PEM_NAME -v
+    - PEM_NAME=$(cat ../../output/pem_name.txt) && ansible-playbook playbooks/deploy_openresty.yml -i inventory/hosts.yml -e pem_file_path=$CI_PROJECT_DIR/output/$PEM_NAME.pem -e pem_name=$PEM_NAME -v
   after_script:
     - rm -f ~/.ssh/id_rsa
   environment:
-    name: production/haproxy
+    name: production/openresty
   rules:
     - if: '$CERT_CONTENT && $KEY_CONTENT'
     - if: '$CI_PIPELINE_SOURCE == "web"'

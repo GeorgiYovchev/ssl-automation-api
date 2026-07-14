@@ -220,33 +220,33 @@ def parse_domains(domains_input: str) -> tuple[list, list]:
 
 # GitLab Integration
 
-def trigger_gitlab_pipeline(cert_content: str, key_content: str, domains: list) -> dict:
+def trigger_gitlab_pipeline(cert_content: str, key_content: str, domains: list, bundle_content: str = None) -> dict:
     """Trigger GitLab pipeline with certificate files"""
     import requests
-    
+
     gitlab_url = app.config['GITLAB_URL']
     project_id = app.config['GITLAB_PROJECT_ID']
     token = app.config['GITLAB_TOKEN']
     branch = app.config['GITLAB_BRANCH']
-    
+
     logger.info(f"=== GitLab Pipeline Trigger ===")
     logger.info(f"GitLab URL: {gitlab_url}")
     logger.info(f"Project ID: {project_id}")
     logger.info(f"Branch: {branch}")
     logger.info(f"Token: {token[:15]}..." if token and len(token) > 15 else f"Token: {token}")
-    
+
     if not all([gitlab_url, project_id, token]):
         logger.error("GitLab configuration missing!")
         return {'success': False, 'error': 'GitLab configuration missing'}
-    
+
     # Using pipeline trigger with variables
     trigger_url = f"{gitlab_url}/api/v4/projects/{project_id}/trigger/pipeline"
-    
+
     logger.info(f"Trigger URL: {trigger_url}")
-    
+
     # Prepare domains as newline-separated string
     domains_content = '\n'.join(domains)
-    
+
     # Create pipeline with file variables
     data = {
         'token': token,
@@ -257,6 +257,10 @@ def trigger_gitlab_pipeline(cert_content: str, key_content: str, domains: list) 
         'variables[TRIGGERED_BY]': 'ssl-automation-api',
         'variables[TRIGGER_TIME]': datetime.now(timezone.utc).isoformat(),
     }
+
+    if bundle_content:
+        data['variables[BUNDLE_CONTENT]'] = bundle_content
+        logger.info("Bundle content included in pipeline variables")
     
     logger.info(f"Request data keys: {list(data.keys())}")
     
@@ -437,14 +441,17 @@ def deploy():
     
     cert_file = request.files['certificate']
     key_file = request.files['key']
+    bundle_file = request.files.get('bundle')
     domains_input = request.form.get('domains', '')
-    
+
     # Read file contents
     cert_data = cert_file.read()
     key_data = key_file.read()
-    
+    bundle_data = bundle_file.read() if bundle_file else None
+
     logger.info(f"Certificate size: {len(cert_data)} bytes")
     logger.info(f"Key size: {len(key_data)} bytes")
+    logger.info(f"Bundle size: {len(bundle_data)} bytes" if bundle_data else "Bundle: not provided")
     logger.info(f"Domains input: {domains_input[:100]}...")
     
     # Validate certificate
@@ -490,6 +497,8 @@ def deploy():
     
     logger.info(f"Deploy method: {deploy_method}")
     
+    bundle_str = bundle_data.decode('utf-8') if bundle_data else None
+
     if deploy_method == 'commit':
         result = commit_and_trigger(
             cert_data.decode('utf-8'),
@@ -500,7 +509,8 @@ def deploy():
         result = trigger_gitlab_pipeline(
             cert_data.decode('utf-8'),
             key_data.decode('utf-8'),
-            domains
+            domains,
+            bundle_content=bundle_str
         )
     
     if result['success']:
